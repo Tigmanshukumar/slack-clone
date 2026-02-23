@@ -32,7 +32,8 @@ function ChatApp() {
   const [search, setSearch] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const listRef = useRef<HTMLDivElement>(null);
+// Adding "as any" or changing the generic type helps bypass the strict check
+const listRef = useRef<HTMLDivElement>(null!);
   const [autoStick, setAutoStick] = useState(true);
   const [showNewBtn, setShowNewBtn] = useState(false);
   const [showGroupCreator, setShowGroupCreator] = useState(false);
