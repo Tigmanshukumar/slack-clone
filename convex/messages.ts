@@ -15,6 +15,7 @@ export const sendMessage = mutation({
       content,
       createdAt,
       readBy: [senderId],
+      deleted: false,
     });
     await ctx.db.patch(conversationId, {
       lastMessage: content,
@@ -33,5 +34,67 @@ export const getMessages = query({
       .order("asc")
       .collect();
     return msgs;
+  },
+});
+
+export const getUnreadCounts = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const convos = await ctx.db
+      .query("conversations")
+      .withIndex("by_updatedAt")
+      .order("desc")
+      .collect();
+    const mine = convos.filter(c => c.members.includes(userId));
+    const result: { conversationId: string; count: number }[] = [];
+    for (const c of mine) {
+      const msgs = await ctx.db
+        .query("messages")
+        .withIndex("by_conversationId", q => q.eq("conversationId", c._id))
+        .collect();
+      const count = msgs.reduce((acc, m) => (m.readBy.includes(userId) ? acc : acc + 1), 0);
+      result.push({ conversationId: c._id, count });
+    }
+    return result;
+  },
+});
+
+export const markConversationRead = mutation({
+  args: { conversationId: v.id("conversations"), userId: v.id("users") },
+  handler: async (ctx, { conversationId, userId }) => {
+    const msgs = await ctx.db
+      .query("messages")
+      .withIndex("by_conversationId", q => q.eq("conversationId", conversationId))
+      .collect();
+    for (const m of msgs) {
+      if (!m.readBy.includes(userId)) {
+        await ctx.db.patch(m._id, { readBy: [...m.readBy, userId] });
+      }
+    }
+  },
+});
+
+export const deleteMessage = mutation({
+  args: { messageId: v.id("messages"), userId: v.id("users") },
+  handler: async (ctx, { messageId, userId }) => {
+    const msg = await ctx.db.get(messageId);
+    if (!msg) return;
+    if (msg.senderId !== userId) {
+      throw new Error("Cannot delete another user's message");
+    }
+    if (msg.deleted) return;
+    await ctx.db.patch(messageId, { deleted: true });
+    // Update lastMessage preview if necessary
+    const conversationId = msg.conversationId;
+    const convo = await ctx.db.get(conversationId);
+    if (!convo) return;
+    const msgs = await ctx.db
+      .query("messages")
+      .withIndex("by_conversationId", q => q.eq("conversationId", conversationId))
+      .order("desc")
+      .collect();
+    const firstNotDeleted = msgs.find(m => !m.deleted);
+    const preview = firstNotDeleted ? firstNotDeleted.content : "Message deleted";
+    await ctx.db.patch(conversationId, { lastMessage: preview });
   },
 });

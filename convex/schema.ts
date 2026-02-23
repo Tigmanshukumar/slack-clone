@@ -12,6 +12,8 @@ export default defineSchema({
 
   conversations: defineTable({
     members: v.array(v.id("users")),
+    isGroup: v.optional(v.boolean()),
+    name: v.optional(v.string()),
     lastMessage: v.optional(v.string()),
     updatedAt: v.number(),
   }).index("by_updatedAt", ["updatedAt"]),
@@ -22,5 +24,23 @@ export default defineSchema({
     content: v.string(),
     createdAt: v.number(),
     readBy: v.array(v.id("users")),
+    deleted: v.optional(v.boolean()),
   }).index("by_conversationId", ["conversationId"]),
+  
+  typing: defineTable({
+    conversationId: v.id("conversations"),
+    userId: v.id("users"),
+    updatedAt: v.number(),
+  })
+    .index("by_conversationId", ["conversationId"])
+    .index("by_conversationId_userId", ["conversationId", "userId"]),
+  
+  reactions: defineTable({
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+    emoji: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_messageId", ["messageId"])
+    .index("by_messageId_userId_emoji", ["messageId", "userId", "emoji"]),
 });

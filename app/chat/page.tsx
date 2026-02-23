@@ -1,18 +1,21 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SignedIn, SignedOut, useUser } from "@clerk/nextjs";
-import Image from "next/image";
-import { formatTimestamp } from "@/lib/date";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import Sidebar from "./components/Sidebar";
+import ChatHeader from "./components/ChatHeader";
+import MessagesPane from "./components/MessagesPane";
+import Composer from "./components/Composer";
+import GroupCreatorModal from "./components/GroupCreatorModal";
 
 type ConvexId = string;
 
 export default function ChatPage() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[#0F0F10] text-[#E4E4E7]">
       <SignedOut>
-        <div className="flex h-screen items-center justify-center text-zinc-600">
+        <div className="flex h-screen items-center justify-center text-[#A1A1AA]">
           <div>Please sign in to use chat.</div>
         </div>
       </SignedOut>
@@ -32,8 +35,13 @@ function ChatApp() {
   const listRef = useRef<HTMLDivElement>(null);
   const [autoStick, setAutoStick] = useState(true);
   const [showNewBtn, setShowNewBtn] = useState(false);
+  const [showGroupCreator, setShowGroupCreator] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
+  const [groupError, setGroupError] = useState<string>("");
 
   const syncUser = useMutation(api.users.syncUser);
+  const setOnlineStatus = useMutation(api.users.setOnlineStatus);
   const [myUserId, setMyUserId] = useState<ConvexId | null>(null);
   useEffect(() => {
     if (!clerkId) return;
@@ -48,12 +56,67 @@ function ChatApp() {
     }).then(id => setMyUserId(id as unknown as string));
   }, [clerkId, syncUser, user]);
 
-  const users = useQuery(api.users.getUsers, myUserId ? { currentClerkId: clerkId } : "skip") || [];
-  const convos = useQuery(api.conversations.getUserConversations, myUserId ? { userId: myUserId as any } : "skip") || [];
-  const messages = useQuery(api.messages.getMessages, activeId ? { conversationId: activeId as any } : "skip") || [];
+  useEffect(() => {
+    if (!clerkId) return;
+    setOnlineStatus({ clerkId, online: true });
+    const goOffline = () => {
+      setOnlineStatus({ clerkId, online: false });
+    };
+    window.addEventListener("pagehide", goOffline);
+    window.addEventListener("beforeunload", goOffline);
+    return () => {
+      window.removeEventListener("pagehide", goOffline);
+      window.removeEventListener("beforeunload", goOffline);
+      setOnlineStatus({ clerkId, online: false });
+    };
+  }, [clerkId, setOnlineStatus]);
+
+  useEffect(() => {
+    if (!clerkId) return;
+    const interval = setInterval(() => {
+      setOnlineStatus({ clerkId, online: true });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [clerkId, setOnlineStatus]);
+
+  const usersRaw = useQuery(api.users.getUsers, myUserId ? { currentClerkId: clerkId } : "skip");
+  const convosRaw = useQuery(api.conversations.getUserConversations, myUserId ? { userId: myUserId as any } : "skip");
+  const messagesRaw = useQuery(api.messages.getMessages, activeId ? { conversationId: activeId as any } : "skip");
+  const unreadCounts = useQuery(api.messages.getUnreadCounts, myUserId ? { userId: myUserId as any } : "skip") || [];
+  const users = usersRaw || [];
+  const convos = convosRaw || [];
+  const messages = messagesRaw || [];
+  const usersLoading = usersRaw === undefined && !!myUserId;
+  const convosLoading = convosRaw === undefined && !!myUserId;
+  const messagesLoading = messagesRaw === undefined && !!activeId;
+  const [typingTick, setTypingTick] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setTypingTick(Date.now()), 2000);
+    return () => clearInterval(id);
+  }, []);
+  const typingUserIds = useQuery(
+    // @ts-ignore - generated types update at dev time
+    (api as any).typing?.getTyping || api.typing.getTyping,
+    activeId && myUserId ? { conversationId: activeId as any, excludeUserId: myUserId as any, now: typingTick } : "skip"
+  ) || [];
+  const reactions = useQuery(
+    // @ts-ignore
+    ((api as any).reactions?.getReactionsForConversation || (api as any).reactions?.getReactionsForConversation) as any,
+    activeId ? { conversationId: activeId as any } : "skip"
+  ) || [];
 
   const createOrGetConversation = useMutation(api.conversations.createOrGetConversation);
   const sendMessageMutation = useMutation(api.messages.sendMessage);
+  const markConversationRead = useMutation(api.messages.markConversationRead);
+  // @ts-ignore - generated types update at dev time
+  const setTypingMutation = useMutation(((api as any).typing?.setTyping || api.typing.setTyping) as any);
+  const deleteMessageMutation = useMutation(api.messages.deleteMessage);
+  // @ts-ignore
+  const createGroupConversation = useMutation((api as any).conversations?.createGroupConversation || (api as any).conversations?.createGroupConversation);
+  // @ts-ignore
+  const toggleReaction = useMutation(((api as any).reactions?.toggleReaction || (api as any).reactions?.toggleReaction) as any);
+  // @ts-ignore
+  const deleteGroupConversation = useMutation((api as any).conversations?.deleteGroupConversation || (api as any).conversations?.deleteGroupConversation);
 
   useEffect(() => {
     const el = listRef.current;
@@ -80,13 +143,6 @@ function ChatApp() {
       setShowNewBtn(true);
     }
   }, [messages, autoStick]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u: any) => u.name.toLowerCase().includes(q));
-  }, [users, search]);
-
   const openWith = async (other: any) => {
     if (!myUserId) return;
     const id = await createOrGetConversation({
@@ -94,163 +150,190 @@ function ChatApp() {
       userBId: other._id,
     });
     setActiveId(id as unknown as string);
+    await markConversationRead({ conversationId: id as any, userId: myUserId as any });
   };
 
+  const [outbox, setOutbox] = useState<{ id: string; content: string; status: "sending" | "error"; conversationId: string }[]>([]);
   const send = async () => {
     const text = input.trim();
     if (!text || !activeId || !myUserId) return;
     setInput("");
-    await sendMessageMutation({
-      conversationId: activeId as any,
-      senderId: myUserId as any,
-      content: text,
-    });
+    const tempId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setOutbox(prev => [...prev, { id: tempId, content: text, status: "sending", conversationId: activeId }]);
+    try {
+      await sendMessageMutation({
+        conversationId: activeId as any,
+        senderId: myUserId as any,
+        content: text,
+      });
+      setOutbox(prev => prev.filter(o => o.id !== tempId));
+      await markConversationRead({ conversationId: activeId as any, userId: myUserId as any });
+    } catch (e) {
+      setOutbox(prev => prev.map(o => (o.id === tempId ? { ...o, status: "error" } : o)));
+    }
   };
+
+  const lastTypingSent = useRef<number>(0);
+
+  useEffect(() => {
+    if (!activeId || !myUserId) return;
+    markConversationRead({ conversationId: activeId as any, userId: myUserId as any });
+  }, [activeId, messages, myUserId, markConversationRead]);
 
   const activeOther = useMemo(() => {
     if (!activeId || !myUserId) return null;
     const c = (convos as any[]).find(x => x._id === activeId);
     if (!c) return null;
+    if (c.isGroup) return null;
     const otherId = c.members.find((m: string) => m !== myUserId);
     return (users as any[]).find(u => u._id === otherId) || null;
   }, [activeId, convos, myUserId, users]);
 
+  const EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
+  const reactionsByMessage = useMemo(() => {
+    const map: Record<
+      string,
+      { counts: Record<string, number>; mine: Set<string> }
+    > = {};
+    (reactions as any[]).forEach(r => {
+      const msgId = r.messageId;
+      if (!map[msgId]) map[msgId] = { counts: {}, mine: new Set() };
+      map[msgId].counts[r.emoji] = (map[msgId].counts[r.emoji] || 0) + 1;
+      if (r.userId === myUserId) map[msgId].mine.add(r.emoji);
+    });
+    return map;
+  }, [reactions, myUserId]);
+
   return (
     <div className="flex h-screen">
-      <div className={`${activeId ? "hidden md:block" : "block"} w-full md:w-80 border-r border-zinc-200 dark:border-zinc-800`}>
-        <div className="p-4">
-          <input
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-3 py-2 text-[15px] outline-none"
-            placeholder="Search users"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="px-4 pb-2 text-xs uppercase text-zinc-500">Users</div>
-        <div className="overflow-y-auto max-h-[35vh] md:max-h-[40vh]">
-          {filtered.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-zinc-500">No matching users</div>
-          ) : (
-            filtered.map((u: any) => (
-              <button
-                key={u._id}
-                className="flex w-full items-center gap-3 px-4 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-                onClick={() => openWith(u)}
-              >
-                <Image src={u.imageUrl || "/vercel.svg"} width={28} height={28} alt={u.name} className="rounded-full" />
-                <div className="text-sm font-medium">{u.name}</div>
-              </button>
-            ))
-          )}
-        </div>
-        <div className="px-4 pt-4 pb-2 text-xs uppercase text-zinc-500">Conversations</div>
-        <div className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 260px)" }}>
-          {convos.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-zinc-500">No conversations yet</div>
-          ) : (
-            (convos as any[]).map(c => {
-              const otherId = c.members.find((m: string) => m !== myUserId);
-              const other = (users as any[]).find(u => u._id === otherId);
-              const active = c._id === activeId;
-              return (
-                <button
-                  key={c._id}
-                  className={`flex w-full items-center gap-3 px-4 py-3 ${active ? "bg-zinc-100 dark:bg-zinc-900" : "hover:bg-zinc-50 dark:hover:bg-zinc-900/50"}`}
-                  onClick={() => setActiveId(c._id)}
-                >
-                  <Image src={other?.imageUrl || "/vercel.svg"} width={28} height={28} alt={other?.name || "User"} className="rounded-full" />
-                  <div className="flex-1 text-left">
-                    <div className="flex items-center justify-between">
-                      <div className={`text-sm ${active ? "font-semibold" : "font-medium"}`}>{other?.name || "User"}</div>
-                      <div className="text-xs text-white-500">
-                        {formatTimestamp(new Date(c.updatedAt))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-zinc-500 truncate max-w-[160px]">
-                        {c.lastMessage || "No messages yet"}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
+      <Sidebar
+        search={search}
+        setSearch={setSearch}
+        users={users as any[]}
+        usersLoading={usersLoading}
+        convos={convos as any[]}
+        convosLoading={convosLoading}
+        unreadCounts={unreadCounts as any[]}
+        activeId={activeId}
+        myUserId={myUserId}
+        onOpenWith={openWith}
+        onSelectConversation={id => setActiveId(id)}
+        onClickNewGroup={() => setShowGroupCreator(true)}
+      />
       <div className={`${activeId ? "flex" : "hidden md:flex"} flex-1 flex-col`}>
         {!activeId ? (
-          <div className="flex h-full items-center justify-center text-zinc-500">
+          <div className="flex h-full items-center justify-center text-[#A1A1AA]">
             <div>Select a user to start chatting</div>
           </div>
         ) : (
           <>
-            <div className="h-14 border-b border-zinc-200 dark:border-zinc-800 flex items-center px-4 gap-3">
-              <button
-                className="md:hidden mr-2 text-sm px-2 py-1 border rounded"
-                onClick={() => setActiveId(null)}
-              >
-                Back
-              </button>
-              {activeOther && (
-                <>
-                  <Image src={activeOther.imageUrl || "/vercel.svg"} width={28} height={28} alt={activeOther.name} className="rounded-full" />
-                  <div className="text-sm font-semibold tracking-[0.01em]">{activeOther.name}</div>
-                </>
-              )}
-            </div>
-            <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-white dark:bg-black">
-              {messages.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-zinc-500">No messages yet</div>
-              ) : (
-                (messages as any[]).map(m => {
-                  const mine = myUserId && m.senderId === myUserId;
-                  return (
-                    <div key={m._id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-[15px] ${mine ? "bg-[#6c47ff] text-white" : "bg-zinc-100 dark:bg-zinc-900"}`}>
-                        <div className="font-normal">{m.content}</div>
-                        <div className={`mt-1 text-[11px] ${mine ? "text-white/80" : "text-zinc-500"} font-normal text-right`}>
-                          {formatTimestamp(new Date(m.createdAt))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              {showNewBtn && (
-                <button
-                  className="fixed bottom-20 right-6 rounded-full bg-zinc-900 text-white px-3 py-2 text-xs shadow"
-                  onClick={() => {
-                    const el = listRef.current;
-                    if (el) el.scrollTop = el.scrollHeight;
-                    setAutoStick(true);
-                    setShowNewBtn(false);
-                  }}
-                >
-                  ↓ New messages
-                </button>
-              )}
-            </div>
-            <div className="h-16 border-t border-zinc-200 dark:border-zinc-800 flex items-center gap-2 px-3">
-              <input
-                className="flex-1 rounded-full border border-zinc-300 dark:border-zinc-700 bg-transparent px-4 py-2 text-[16px] outline-none"
-                placeholder="Type a message"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === "Enter") send();
-                }}
-              />
-              <button
-                className="rounded-full bg-[#6c47ff] text-white px-4 py-2 text-sm"
-                onClick={send}
-              >
-                Send
-              </button>
-            </div>
+            <ChatHeader
+              convos={convos as any[]}
+              activeId={activeId}
+              activeOther={activeOther}
+              onBack={() => setActiveId(null)}
+              onDeleteGroup={async () => {
+                if (!myUserId || !activeId) return;
+                const ok = window.confirm("Delete this group for all members? This cannot be undone.");
+                if (!ok) return;
+                // @ts-ignore
+                await deleteGroupConversation({ conversationId: activeId as any, requesterId: myUserId as any });
+                setActiveId(null);
+              }}
+            />
+            <MessagesPane
+              conversationId={activeId}
+              listRef={listRef}
+              messages={messages as any[]}
+              messagesLoading={messagesLoading}
+              myUserId={myUserId}
+              reactionsByMessage={reactionsByMessage}
+              EMOJIS={EMOJIS}
+              onDeleteMessage={(id: string) => {
+                if (!myUserId) return;
+                deleteMessageMutation({ messageId: id as any, userId: myUserId as any });
+              }}
+              onToggleReaction={(messageId: string, emoji: string) => {
+                if (!myUserId) return;
+                toggleReaction({ messageId: messageId as any, userId: myUserId as any, emoji });
+              }}
+              outbox={outbox}
+              onRetryOutbox={async (o) => {
+                if (!myUserId || !activeId) return;
+                setOutbox(prev => prev.map(x => (x.id === o.id ? { ...x, status: "sending" } : x)));
+                try {
+                  await sendMessageMutation({
+                    conversationId: activeId as any,
+                    senderId: myUserId as any,
+                    content: o.content,
+                  });
+                  setOutbox(prev => prev.filter(x => x.id !== o.id));
+                  await markConversationRead({ conversationId: activeId as any, userId: myUserId as any });
+                } catch {
+                  setOutbox(prev => prev.map(x => (x.id === o.id ? { ...x, status: "error" } : x)));
+                }
+              }}
+              typingUserIds={typingUserIds as any[]}
+              activeOther={activeOther}
+              showNewBtn={showNewBtn}
+              onClickNewMessages={() => {
+                const el = listRef.current;
+                if (el) el.scrollTop = el.scrollHeight;
+                setAutoStick(true);
+                setShowNewBtn(false);
+              }}
+            />
+            <Composer
+              input={input}
+              onInputChange={(v: string) => {
+                setInput(v);
+                const now = Date.now();
+                if (activeId && myUserId && now - lastTypingSent.current > 900) {
+                  lastTypingSent.current = now;
+                  setTypingMutation({ conversationId: activeId as any, userId: myUserId as any });
+                }
+              }}
+              onSend={send}
+            />
           </>
         )}
       </div>
+      <GroupCreatorModal
+        open={showGroupCreator}
+        onClose={() => setShowGroupCreator(false)}
+        users={users as any[]}
+        groupName={groupName}
+        setGroupName={(v: string) => {
+          setGroupName(v);
+          setGroupError("");
+        }}
+        groupError={groupError}
+        selectedIds={selectedIds}
+        setSelectedIds={fn => {
+          setSelectedIds(prev => fn(prev));
+          setGroupError("");
+        }}
+        onCreate={async () => {
+          if (!myUserId) return;
+          const chosen = Object.keys(selectedIds).filter(id => selectedIds[id]);
+          const allMembers = Array.from(new Set([myUserId, ...chosen]));
+          if (groupName.trim().length === 0) {
+            setGroupError("Please enter a group name.");
+            return;
+          }
+          if (allMembers.length < 2) {
+            setGroupError("Pick at least one other member.");
+            return;
+          }
+          // @ts-ignore
+          const id = await createGroupConversation({ name: groupName.trim(), memberIds: allMembers as any });
+          setShowGroupCreator(false);
+          setGroupName("");
+          setSelectedIds({});
+          setActiveId(id as any);
+        }}
+        canCreate={groupName.trim().length > 0}
+      />
     </div>
   );
 }

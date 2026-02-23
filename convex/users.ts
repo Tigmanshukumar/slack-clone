@@ -34,10 +34,42 @@ export const syncUser = mutation({
   },
 });
 
+export const setOnlineStatus = mutation({
+  args: {
+    clerkId: v.string(),
+    online: v.boolean(),
+  },
+  handler: async (ctx, { clerkId, online }) => {
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", q => q.eq("clerkId", clerkId))
+      .unique();
+    const now = Date.now();
+    if (!existing) {
+      await ctx.db.insert("users", {
+        clerkId,
+        name: "User",
+        imageUrl: "",
+        online,
+        lastSeen: now,
+      });
+      return;
+    }
+    await ctx.db.patch(existing._id, { online, lastSeen: now });
+  },
+});
+
 export const getUsers = query({
   args: { currentClerkId: v.string() },
   handler: async (ctx, { currentClerkId }) => {
     const all = await ctx.db.query("users").collect();
-    return all.filter(u => u.clerkId !== currentClerkId);
+    const now = Date.now();
+    const THRESHOLD = 30_000;
+    return all
+      .filter(u => u.clerkId !== currentClerkId)
+      .map(u => ({
+        ...u,
+        online: now - u.lastSeen < THRESHOLD,
+      }));
   },
 });
