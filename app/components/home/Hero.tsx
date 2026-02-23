@@ -24,12 +24,12 @@ export default function Hero() {
           <div className="mt-8 flex flex-wrap gap-3">
             <SignedOut>
               <SignUpButton>
-                <button className="inline-flex items-center rounded-full bg-white px-6 py-3 text-sm font-medium text-[#3b2bd1]">
+                <button className="inline-flex cursor-default hover:cursor-pointer items-center rounded-full bg-white px-6 py-3 text-sm font-medium text-[#3b2bd1]">
                   Create an account
                 </button>
               </SignUpButton>
               <SignInButton>
-                <button className="inline-flex items-center rounded-full border border-white/70 px-6 py-3 text-sm font-medium text-white">
+                <button className="inline-flex cursor-default hover:cursor-pointer items-center rounded-full border border-white/70 px-6 py-3 text-sm font-medium text-white">
                   Sign in
                 </button>
               </SignInButton>

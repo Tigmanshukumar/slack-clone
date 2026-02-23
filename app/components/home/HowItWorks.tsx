@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { SignedIn, SignedOut } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignUpButton } from "@clerk/nextjs";
 
 function StepCard({ n, title, desc }: { n: string; title: string; desc: string }) {
   return (
@@ -26,9 +26,11 @@ export default function HowItWorks() {
         </div>
         <div className="mt-8">
           <SignedOut>
-            <Link href="/sign-up" className="inline-flex items-center rounded-full bg-[#6c47ff] px-6 py-3 text-sm font-medium text-white">
+            <SignUpButton>
+            <button className="inline-flex cursor-default hover:cursor-pointer items-center rounded-full bg-[#6c47ff] px-6 py-3 text-sm font-medium text-white">
               Get started free
-            </Link>
+            </button>
+            </SignUpButton>
           </SignedOut>
           <SignedIn>
             <Link href="/chat" className="inline-flex items-center rounded-full bg-[#6c47ff] px-6 py-3 text-sm font-medium text-white">
