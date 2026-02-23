@@ -244,7 +244,8 @@ const listRef = useRef<HTMLDivElement>(null!);
             />
             <MessagesPane
               conversationId={activeId}
-              listRef={listRef}
+listRef={listRef as any}
+              // listRef={listRef}
               messages={messages as any[]}
               messagesLoading={messagesLoading}
               myUserId={myUserId}
