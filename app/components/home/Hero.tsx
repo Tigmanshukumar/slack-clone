@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { useEffect, useState, useRef } from "react";
+import Button from "@/app/components/home/Button"; // adjust path to where you saved the file
 
 const TYPING_PHRASE = "Start Messaging";
 const TYPING_SPEED = 90;
@@ -102,24 +103,38 @@ export default function Hero() {
           <div className="mt-8 flex flex-wrap gap-3">
             <SignedOut>
               <SignUpButton>
-                <button className="inline-flex cursor-default hover:cursor-pointer items-center rounded-full bg-white px-6 py-3 text-sm font-medium text-[#3b2bd1]">
-                  Create an account
-                </button>
+                <button className="relative flex items-center gap-1 bg-white px-8 py-3 bg-inherit rounded-4xl font-semibold text-[#6c47ff] cursor-pointer overflow-hidden transition-all duration-700 ease-custom border-2 border-transparent hover:text-white hover:rounded-3xl hover:border-white group hover:duration-700">
+      <svg
+        viewBox="0 0 24 24"
+        className="absolute w-6 fill-[#6c47ff] z-[9] transition-all duration-700 ease-custom -left-1/4 group-hover:left-4 group-hover:fill-white"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M16.1716 10.9999L10.8076 5.63589L12.2218 4.22168L20 11.9999L12.2218 19.778L10.8076 18.3638L16.1716 12.9999H4V10.9999H16.1716Z" />
+      </svg>
+      <span className="relative z-[1] transition-all duration-700 ease-custom -translate-x-3 group-hover:translate-x-3">
+        Create an account
+      </span>
+      <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-[#7f5aff] rounded-full opacity-0 transition-all duration-700 ease-custom group-hover:w-[220px] group-hover:h-[220px] group-hover:opacity-100" />
+      <svg
+        viewBox="0 0 24 24"
+        className="absolute w-6 fill-[#6c47ff] z-[9] transition-all duration-700 ease-custom right-4 group-hover:-right-1/4 group-hover:fill-white"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M16.1716 10.9999L10.8076 5.63589L12.2218 4.22168L20 11.9999L12.2218 19.778L10.8076 18.3638L16.1716 12.9999H4V10.9999H16.1716Z" />
+      </svg>
+    </button>
               </SignUpButton>
               <SignInButton>
-                <button className="inline-flex cursor-default hover:cursor-pointer items-center rounded-full border border-white/70 px-6 py-3 text-sm font-medium text-white">
+                <button className="inline-flex cursor-default  hover:cursor-pointer hover:bg-white transition-all duration-700 hover:text-[#6c47ff] items-center rounded-full border border-white/70 px-6 py-3 text-sm font-medium text-white">
                   Sign in
                 </button>
               </SignInButton>
             </SignedOut>
             <SignedIn>
-              <Link
-                href="/chat"
-                className="inline-flex items-center rounded-full bg-white px-6 py-3 text-sm font-medium text-[#3b2bd1]"
-              >
-                Open chat
-              </Link>
-            </SignedIn>
+  <Link href="/chat">
+    <Button />
+  </Link>
+</SignedIn>
           </div>
         </div>
 
@@ -132,10 +147,10 @@ export default function Hero() {
                 className={`flex items-end gap-2 ${m.side === "right" ? "flex-row-reverse" : ""}`}
               >
                 <img
-  src={m.avatarUrl}
-  alt="avatar"
-  className="h-7 w-7 rounded-full shrink-0 object-cover"
-/>
+                  src={m.avatarUrl}
+                  alt="avatar"
+                  className="h-7 w-7 rounded-full shrink-0 object-cover"
+                />
                 <div
                   className={`rounded-2xl px-3 py-1.5 text-sm text-white max-w-[75%] shadow-sm ${
                     m.side === "right" ? "bg-[#7C3AED]/70" : "bg-white/20"
@@ -147,7 +162,22 @@ export default function Hero() {
             ))}
 
             {/* Typing input row */}
-            <div className="mt-auto flex items-center gap-5 rounded-full bg-white/20 border border-white/30 px-4 py-2">
+            <div className="mt-auto flex hover:cursor-text items-center gap-2 rounded-full bg-white/20 border border-white/30 px-4 py-2">
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    className="text-white/70 shrink-0"
+  >
+    <path
+      d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
               <span className="flex-1 text-sm text-white/80 tracking-wide">
                 {displayed}
                 <span
@@ -158,7 +188,7 @@ export default function Hero() {
                   }}
                 />
               </span>
-              <div className="h-6 w-6 rounded-full bg-white/30 flex items-center justify-center shrink-0">
+              <div className="h-6 w-6 hover:cursor-pointer rounded-full bg-white/30 flex items-center justify-center shrink-0">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
                   <path d="M2 21l21-9L2 3v7l15 2-15 2z" />
                 </svg>
