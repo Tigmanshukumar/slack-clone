@@ -15,6 +15,9 @@
 [![Version](https://img.shields.io/badge/version-1.0.0-purple?style=flat-square)](package.json)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](https://github.com/Tigmanshukumar/slack-clone/pulls)
 
+[![Live Demo](https://img.shields.io/badge/🌐%20Live%20Demo-Visit%20Site-success?style=for-the-badge)](https://slack-chat-bice.vercel.app/)
+
+
 </div>
 
 ---
