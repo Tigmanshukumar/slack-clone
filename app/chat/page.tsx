@@ -153,6 +153,14 @@ function ChatApp() {
     (api as any).conversations?.deleteGroupConversation ||
       (api as any).conversations?.deleteGroupConversation,
   );
+  const generateUploadUrl = useMutation(
+    // @ts-ignore
+    (api as any).messages?.generateUploadUrl || api.messages.generateUploadUrl,
+  );
+  const sendFileMessageMutation = useMutation(
+    // @ts-ignore
+    (api as any).messages?.sendFileMessage || api.messages.sendFileMessage,
+  );
 
   useEffect(() => {
     const el = listRef.current;
@@ -200,6 +208,8 @@ function ChatApp() {
       conversationId: string;
     }[]
   >([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string>("");
   const send = async () => {
     const text = input.trim();
     if (!text || !activeId || !myUserId) return;
@@ -389,7 +399,53 @@ function ChatApp() {
                 }
               }}
               onSend={send}
+              onSelectFile={async (file: File) => {
+                setUploadError("");
+                if (!activeId || !myUserId) return;
+                const ext = file.name.split(".").pop()?.toLowerCase() || "";
+                const isImage = ["jpg", "jpeg", "png"].includes(ext);
+                const isPdf = ext === "pdf";
+                if (!isImage && !isPdf) {
+                  setUploadError("Only JPG, JPEG, PNG or PDF files are allowed.");
+                  return;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                  setUploadError("Max file size is 5MB.");
+                  return;
+                }
+                try {
+                  setUploading(true);
+                  const url = await generateUploadUrl({});
+                  const res = await fetch(url as string, {
+                    method: "POST",
+                    headers: { "Content-Type": file.type },
+                    body: file,
+                  });
+                  const json = await res.json();
+                  const storageId = json.storageId;
+                  if (!storageId) throw new Error("Upload failed");
+                  await sendFileMessageMutation({
+                    conversationId: activeId as any,
+                    senderId: myUserId as any,
+                    fileId: storageId,
+                    fileName: file.name,
+                    fileType: isImage ? "image" : "pdf",
+                  } as any);
+                  await markConversationRead({
+                    conversationId: activeId as any,
+                    userId: myUserId as any,
+                  });
+                } catch (e) {
+                  setUploadError("Upload failed. Please try again.");
+                } finally {
+                  setUploading(false);
+                }
+              }}
+              uploading={uploading}
             />
+            {uploadError && (
+              <div className="px-4 pb-2 text-xs text-[#f87171]">{uploadError}</div>
+            )}
           </>
         )}
       </div>

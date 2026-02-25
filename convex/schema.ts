@@ -25,6 +25,9 @@ export default defineSchema({
     createdAt: v.number(),
     readBy: v.array(v.id("users")),
     deleted: v.optional(v.boolean()),
+    fileId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
+    fileType: v.optional(v.string()),
   }).index("by_conversationId", ["conversationId"]),
   
   typing: defineTable({

@@ -14,7 +14,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Slack Chat",
-  description: "Chat application built with Next.js, Clerk, and Convex",
+  description: "Real-time Chat application built with Modern Tools",
 };
 
 export default function RootLayout({

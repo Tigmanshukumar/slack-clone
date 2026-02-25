@@ -33,7 +33,16 @@ export const getMessages = query({
       .withIndex("by_conversationId", q => q.eq("conversationId", conversationId))
       .order("asc")
       .collect();
-    return msgs;
+    const enhanced = await Promise.all(
+      msgs.map(async m => {
+        if (m.fileId) {
+          const url = await ctx.storage.getUrl(m.fileId);
+          return { ...m, fileUrl: url };
+        }
+        return m;
+      })
+    );
+    return enhanced;
   },
 });
 
@@ -94,7 +103,56 @@ export const deleteMessage = mutation({
       .order("desc")
       .collect();
     const firstNotDeleted = msgs.find(m => !m.deleted);
-    const preview = firstNotDeleted ? firstNotDeleted.content : "Message deleted";
+    let preview = "Message deleted";
+    if (firstNotDeleted) {
+      if (firstNotDeleted.fileType) {
+        preview = firstNotDeleted.fileName || "Sent a file";
+      } else {
+        preview = firstNotDeleted.content;
+      }
+    }
     await ctx.db.patch(conversationId, { lastMessage: preview });
+  },
+});
+
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const url = await ctx.storage.generateUploadUrl();
+    return url;
+  },
+});
+
+export const sendFileMessage = mutation({
+  args: {
+    conversationId: v.id("conversations"),
+    senderId: v.id("users"),
+    fileId: v.id("_storage"),
+    fileName: v.string(),
+    fileType: v.string(), // "image" | "pdf"
+  },
+  handler: async (ctx, { conversationId, senderId, fileId, fileName, fileType }) => {
+    const convo = await ctx.db.get(conversationId);
+    if (!convo) throw new Error("Conversation not found");
+    if (!convo.members.includes(senderId)) throw new Error("Not a member of this conversation");
+
+    const createdAt = Date.now();
+    const msgId = await ctx.db.insert("messages", {
+      conversationId,
+      senderId,
+      content: "",
+      createdAt,
+      readBy: [senderId],
+      deleted: false,
+      fileId,
+      fileName,
+      fileType,
+    });
+    const preview = fileName || "Sent a file";
+    await ctx.db.patch(conversationId, {
+      lastMessage: preview,
+      updatedAt: createdAt,
+    });
+    return msgId;
   },
 });

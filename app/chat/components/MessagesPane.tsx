@@ -63,9 +63,59 @@ export default function MessagesPane({
                   ? "bg-gradient-to-br from-[#7C3AED] to-[#6D28D9] text-white shadow-[0_0_10px_rgba(124,58,237,0.25)]"
                   : "bg-[#18181B] text-[#E4E4E7] shadow-sm shadow-black/20"
               }`}>
-                <div className={`font-normal ${m.deleted ? "italic" : ""}`}>
-                  {m.deleted ? "This message was deleted" : m.content}
-                </div>
+                {m.fileId ? (
+                  
+                  <div className="font-normal">
+                    {m.fileType === "image" ? (
+                      <div className="overflow-hidden rounded-lg border border-[rgba(255,255,255,0.08)]">
+                        {m.fileUrl ? (
+                          <>
+                          
+                            <img
+                              src={m.fileUrl as string}
+                              alt={m.fileName || "image"}
+                              className="max-h-64 object-contain bg-black/20"
+                            />
+                            <div className="flex justify-end p-2 bg-black/10">
+                              <a
+                                href={m.fileUrl as string}
+                                download={m.fileName || "image"}
+                                className="text-xs rounded-full border border-[rgba(255,255,255,0.08)] px-2 py-1 hover:bg-white/10"
+                              >
+                                Download
+                              </a>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="h-40 w-56 bg-black/20 animate-pulse" />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-[rgba(255,255,255,0.08)] bg-black/20 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-8 w-8 rounded flex items-center justify-center">
+                            <img src="pdf-file.png" alt="PDF" />
+                          </span>
+                          <span className="text-sm">{m.fileName || "Document.pdf"}</span>
+                        </div>
+                        {m.fileUrl && (
+                          <a
+                            href={m.fileUrl as string}
+                            download={m.fileName || "document.pdf"}
+                            className="text-xs rounded-full border border-[rgba(255,255,255,0.08)] px-2 py-1 hover:bg-white/10"
+                          >
+                            Download
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {m.content && <div className="mt-2">{m.content}</div>}
+                  </div>
+                ) : (
+                  <div className={`font-normal ${m.deleted ? "italic" : ""}`}>
+                    {m.deleted ? "This message was deleted" : m.content}
+                  </div>
+                )}
                 <div className={`mt-1 flex items-center justify-end gap-2 text-[11px] text-gray-300 font-normal`}>
                   <span>{formatTimestamp(new Date(m.createdAt))}</span>
                   {mine && !m.deleted && (
