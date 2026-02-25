@@ -28,7 +28,7 @@ export default function Composer({ input, onInputChange, onSend, onSelectFile, u
         }}
       />
       <button
-        className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[#18181B] text-[#E4E4E7] px-3 py-2 text-sm"
+        className="rounded-full hover:cursor-pointer hover:bg-[#6D28D9] transition border border-[rgba(255,255,255,0.08)] bg-[#18181B] text-[#E4E4E7] px-3 py-2 text-sm"
         onClick={() => fileRef.current?.click()}
         disabled={uploading}
         title="Attach file"
@@ -37,13 +37,15 @@ export default function Composer({ input, onInputChange, onSend, onSelectFile, u
       </button>
       <input
         className="flex-1 rounded-full border border-[rgba(255,255,255,0.08)] bg-[#18181B] px-4 py-2 text-[16px] outline-none text-[#E4E4E7] focus:border-[#7C3AED] focus:ring-2 focus:ring-[#7C3AED]/30 transition"
-        placeholder="Type a message"
+        placeholder={uploading ? "Max Limit 5MB" : "Type a message"}
         value={input}
         onChange={e => onInputChange(e.target.value)}
         onKeyDown={onKeyDown}
+      
       />
+      
       <button
-        className="rounded-full bg-[#7C3AED] hover:bg-[#6D28D9] transition text-white px-4 py-2 text-sm shadow-[0_0_10px_rgba(124,58,237,0.25)]"
+        className="rounded-full hover:cursor-pointer   bg-[#7C3AED] hover:bg-[#6D28D9] transition text-white px-4 py-2 text-sm shadow-[0_0_10px_rgba(124,58,237,0.25)]"
         onClick={onSend}
         disabled={uploading}
       >
