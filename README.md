@@ -17,7 +17,6 @@
 
 [![Live Demo](https://img.shields.io/badge/🌐%20Live%20Demo-Visit%20Site-success?style=for-the-badge)](https://slack-chat-bice.vercel.app/)
 
-
 </div>
 
 ---
@@ -33,9 +32,11 @@
 | ✍️ **Typing Indicators** | Know when someone is composing a message |
 | 🗑️ **Message Deletion** | Soft-delete your own messages with a visible placeholder |
 | 🔔 **Unread Counts** | Per-conversation unread badge that clears when you open a chat |
+| 📎 **File Sharing** | Send images (JPG, PNG) and PDFs up to 5MB with inline preview and download |
 | 📱 **Responsive** | Mobile-first sidebar navigation with a full desktop layout |
 | 🔐 **Auth** | Email and social sign-in via Clerk, profiles sync automatically |
 | ⏱️ **Smart Timestamps** | Readable times for today; full dates for older messages |
+| 🎨 **Animated Landing Page** | Live typing animation, mock chat preview, and animated CTA buttons |
 
 ---
 
@@ -47,20 +48,20 @@
     <td align="center"><b>Chat Interface</b></td>
   </tr>
   <tr>
-    <td><img src="https://i.postimg.cc/fRgkmnNk/screencapture-localhost-3000-2026-02-23-14-15-09.png" alt="Landing Page" width="400"/></td>
-    <td><img src="https://i.postimg.cc/DzHJkVjY/screencapture-localhost-3000-chat-2026-02-23-14-34-23.png" alt="Chat Interface" width="400"/></td>
+    <td><img src="https://i.postimg.cc/mDsH2h13/screencapture-slack-chat-bice-vercel-app-2026-02-25-12-25-53.png" alt="Landing Page" width="400"/></td>
+    <td><img src="https://i.postimg.cc/HnLjVMYn/screencapture-slack-chat-bice-vercel-app-chat-2026-02-25-12-26-57.png" alt="Chat Interface" width="400"/></td>
   </tr>
 </table>
 
 ---
 
 ## 🛠️ Tech Stack
-
 ```
 Frontend   →  Next.js 16 (App Router) + React 19 + TypeScript
 Styling    →  Tailwind CSS v4
 Auth       →  Clerk (email, OAuth, user profiles)
 Database   →  Convex (real-time reactive queries & mutations)
+Storage    →  Convex File Storage (images & PDFs)
 Fonts      →  Inter via next/font
 ```
 
@@ -75,14 +76,12 @@ Fonts      →  Inter via next/font
 - A [Convex](https://convex.dev) account
 
 ### 1. Clone the repository
-
 ```bash
 git clone https://github.com/Tigmanshukumar/slack-clone.git
 cd slack-clone
 ```
 
 ### 2. Install dependencies
-
 ```bash
 npm install
 ```
@@ -90,7 +89,6 @@ npm install
 ### 3. Set up environment variables
 
 Create a `.env.local` file in the root:
-
 ```env
 # Clerk
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
@@ -101,7 +99,6 @@ NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
 ```
 
 ### 4. Initialize Convex
-
 ```bash
 npx convex dev
 ```
@@ -109,7 +106,6 @@ npx convex dev
 This will push your schema and generate the typed API client.
 
 ### 5. Run the development server
-
 ```bash
 npm run dev
 ```
@@ -119,36 +115,37 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 ---
 
 ## 📁 Project Structure
-
 ```
 slack-clone/
 ├── app/
 │   ├── chat/
 │   │   ├── components/
-│   │   │   ├── ChatHeader.tsx      # Conversation header with user/group info
-│   │   │   ├── Composer.tsx        # Message input bar
+│   │   │   ├── ChatHeader.tsx        # Conversation header with user/group info
+│   │   │   ├── Composer.tsx          # Message input bar with file attach icon
 │   │   │   ├── GroupCreatorModal.tsx
-│   │   │   ├── MessagesPane.tsx    # Message list with reactions & outbox
-│   │   │   └── Sidebar.tsx         # User & conversation list
-│   │   └── page.tsx                # Main chat page with all state
+│   │   │   ├── MessagesPane.tsx      # Message list with reactions & outbox
+│   │   │   └── Sidebar.tsx           # User & conversation list
+│   │   └── page.tsx                  # Main chat page with all state
 │   ├── components/
 │   │   ├── AppFooter.tsx
+│   │   ├── AppNavbar.tsx
 │   │   └── home/
-│   │       ├── Hero.tsx
-│   │       ├── Features.tsx
-│   │       └── HowItWorks.tsx
+│   │       ├── Button.tsx            # Animated CTA button component
+│   │       ├── Hero.tsx              # Landing hero with typing animation & chat preview
+│   │       ├── Features.tsx          # Feature cards with hover shimmer effect
+│   │       └── HowItWorks.tsx        # Step cards with animated CTA
 │   ├── ConvexClientProvider.tsx
 │   ├── layout.tsx
 │   └── page.tsx
 ├── convex/
-│   ├── schema.ts                   # Database schema (users, convos, messages…)
-│   ├── users.ts                    # User sync & presence mutations
-│   ├── conversations.ts            # DM & group conversation logic
-│   ├── messages.ts                 # Send, delete, read-tracking
-│   ├── reactions.ts                # Emoji reaction toggle
-│   └── typing.ts                   # Typing indicator heartbeat
+│   ├── schema.ts                     # Database schema (users, convos, messages…)
+│   ├── users.ts                      # User sync & presence mutations
+│   ├── conversations.ts              # DM & group conversation logic
+│   ├── messages.ts                   # Send, delete, file upload, read-tracking
+│   ├── reactions.ts                  # Emoji reaction toggle
+│   └── typing.ts                     # Typing indicator heartbeat
 ├── lib/
-│   └── date.ts                     # Smart timestamp formatter
+│   └── date.ts                       # Smart timestamp formatter
 └── public/
 ```
 
@@ -167,14 +164,24 @@ slack-clone/
 ---
 
 ## 🗄️ Data Model
-
 ```
 users           clerkId, name, imageUrl, online, lastSeen
 conversations   members[], isGroup, name?, lastMessage?, updatedAt
-messages        conversationId, senderId, content, createdAt, readBy[], deleted
+messages        conversationId, senderId, content, createdAt, readBy[], deleted, fileId?, fileName?, fileType?
 reactions       messageId, userId, emoji, createdAt
 typing          conversationId, userId, updatedAt
 ```
+
+---
+
+## 🆕 Recent Improvements
+
+- **📎 File attachment icon** — replaced text "Attach" button with a paperclip SVG icon with purple hover state and upload spinner
+- **🎬 Typing animation** — hero section features a live "Start Messaging" typewriter loop with blinking cursor
+- **🖼️ Chat preview** — mock conversation with real avatar images shown on the landing page
+- **✨ Animated buttons** — custom animated CTA buttons with sliding purple fill and arrow transitions throughout the landing page
+- **🃏 Feature card shimmer** — hover effect on feature and step cards with a sweeping light animation
+- **📤 Upload status** — input placeholder changes to show upload progress; attach button shows a spinner while uploading
 
 ---
 
