@@ -23,6 +23,37 @@ type Props = {
   onClickNewMessages: () => void;
 };
 
+// ── Blob download helper — bypasses cross-origin restriction ──
+async function downloadFile(url: string, fileName: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    // fallback: open in new tab
+    window.open(url, "_blank");
+  }
+}
+
+// ── Download icon SVG ──
+function DownloadIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+// ── Editable message textarea ──
 function EditableMessage({
   initialContent,
   onSave,
@@ -79,6 +110,7 @@ function EditableMessage({
   );
 }
 
+// ── Main component ──
 export default function MessagesPane({
   conversationId,
   listRef,
@@ -98,9 +130,18 @@ export default function MessagesPane({
   onClickNewMessages,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownload = async (messageId: string, url: string, fileName: string) => {
+    setDownloadingId(messageId);
+    await downloadFile(url, fileName);
+    setDownloadingId(null);
+  };
 
   return (
     <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-[#0F0F10]">
+
+      {/* ── Loading skeleton ── */}
       {messagesLoading ? (
         <div className="space-y-2">
           {[...Array(8)].map((_, i) => (
@@ -109,26 +150,29 @@ export default function MessagesPane({
             </div>
           ))}
         </div>
+
       ) : messages.length === 0 ? (
-        <div className="flex h-full items-center justify-center text-[#71717A]">No messages yet</div>
+        <div className="flex h-full items-center justify-center text-[#71717A]">
+          No messages yet
+        </div>
+
       ) : (
         (messages as any[]).map(m => {
-          const mine = myUserId && m.senderId === myUserId;
+          const mine = !!(myUserId && m.senderId === myUserId);
           const isEditing = editingId === m._id;
           const canEdit = mine && !m.deleted && !m.fileId;
+          const isDownloading = downloadingId === m._id;
 
-          // defined here — in scope for entire message block
           const info = reactionsByMessage[m._id] || { counts: {}, mine: new Set() };
           const hasReactions = Object.values(info.counts).some(c => (c as number) > 0);
 
           return (
-            // Row — alignment only, no group here
             <div key={m._id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
 
-              {/* group on tight bubble wrapper — hover zone matches bubble size exactly */}
+              {/* Hover group */}
               <div className="group relative max-w-[70%]">
 
-                {/* Floating emoji picker — appears above bubble on hover */}
+                {/* ── Floating emoji picker ── */}
                 {!m.deleted && !isEditing && (
                   <div className={`
                     absolute -top-10 z-20
@@ -157,7 +201,7 @@ export default function MessagesPane({
                   </div>
                 )}
 
-                {/* Message bubble */}
+                {/* ── Message bubble ── */}
                 <div className={`rounded-xl px-3 py-2 text-[15px] ${
                   m.deleted
                     ? "bg-[#1F1F23] text-[#A1A1AA]"
@@ -165,30 +209,67 @@ export default function MessagesPane({
                     ? "bg-gradient-to-br from-[#7C3AED] to-[#6D28D9] text-white shadow-[0_0_10px_rgba(124,58,237,0.25)]"
                     : "bg-[#18181B] text-[#E4E4E7] shadow-sm shadow-black/20"
                 }`}>
+
+                  {/* ── File content ── */}
                   {m.fileId ? (
                     <div className="font-normal">
                       {m.fileType === "image" ? (
+                        // ── Image ──
                         <div className="overflow-hidden rounded-lg border border-[rgba(255,255,255,0.08)]">
                           {m.fileUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={m.fileUrl} alt={m.fileName || "image"} className="max-w-[220px] max-h-[220px] object-cover" />
+                            <img
+                              src={m.fileUrl}
+                              alt={m.fileName || "image"}
+                              className="max-w-[220px] max-h-[220px] object-cover block"
+                            />
                           ) : (
                             <div className="h-24 w-48 bg-[#27272A] animate-pulse rounded-lg" />
                           )}
+                          {/* Download button — blob fetch to force save dialog */}
+                          <button
+                            onClick={() => handleDownload(m._id, m.fileUrl, m.fileName || "image")}
+                            disabled={isDownloading || !m.fileUrl}
+                            className="flex w-full items-center justify-center gap-1.5 bg-[#18181B]/80 py-1.5 text-xs text-[#A1A1AA] hover:text-white hover:bg-[#27272A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isDownloading ? (
+                              <>
+                                <span className="inline-block h-3 w-3 border-2 border-[#A1A1AA] border-t-transparent rounded-full animate-spin" />
+                                <span>Downloading…</span>
+                              </>
+                            ) : (
+                              <>
+                                <DownloadIcon />
+                                <span>Download</span>
+                              </>
+                            )}
+                          </button>
                         </div>
                       ) : (
-                        <a
-                          href={m.fileUrl || "#"}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 underline underline-offset-2 text-sm"
-                        >
-                          <span>📄</span>
-                          <span>{m.fileName || "File"}</span>
-                        </a>
+                        // ── PDF ──
+                        <div className="flex items-center justify-between gap-3 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#18181B]/60 px-3 py-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span ><img src="/pdf-file.png" className="w-6 h-6" alt="" /></span>
+                            <span className="text-sm truncate max-w-[140px]">{m.fileName || "File"}</span>
+                          </div>
+                          <button
+                            onClick={() => handleDownload(m._id, m.fileUrl, m.fileName || "file")}
+                            disabled={isDownloading || !m.fileUrl}
+                            className="shrink-0 flex items-center gap-1 text-xs text-[#A1A1AA] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isDownloading ? (
+                              <span className="inline-block h-3 w-3 border-2 border-[#A78BFA] border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <DownloadIcon />
+                            )}
+                            <span>{isDownloading ? "…" : "Download"}</span>
+                          </button>
+                        </div>
                       )}
                     </div>
+
                   ) : isEditing ? (
+                    // ── Edit mode ──
                     <EditableMessage
                       messageId={m._id}
                       initialContent={m.content}
@@ -198,13 +279,15 @@ export default function MessagesPane({
                       }}
                       onCancel={() => setEditingId(null)}
                     />
+
                   ) : (
+                    // ── Normal text ──
                     <div className={`font-normal ${m.deleted ? "italic" : ""}`}>
                       {m.deleted ? "This message was deleted" : m.content}
                     </div>
                   )}
 
-                  {/* Timestamp + actions */}
+                  {/* ── Timestamp + Edit / Delete ── */}
                   {!isEditing && (
                     <div className="mt-1 flex items-center justify-end gap-2 text-[11px] text-gray-300 font-normal">
                       {m.edited && !m.deleted && (
@@ -215,14 +298,14 @@ export default function MessagesPane({
                         <>
                           {canEdit && (
                             <button
-                              className="text-[11px] underline-offset-2 hover:underline text-[#A78BFA]"
+                              className="underline-offset-2 hover:underline text-[#A78BFA]"
                               onClick={() => setEditingId(m._id)}
                             >
                               Edit
                             </button>
                           )}
                           <button
-                            className="text-[11px] underline-offset-2 hover:underline text-red-500"
+                            className="underline-offset-2 hover:underline text-red-500"
                             onClick={() => onDeleteMessage(m._id)}
                           >
                             Delete
@@ -231,9 +314,9 @@ export default function MessagesPane({
                       )}
                     </div>
                   )}
-                </div>
+                </div>{/* end bubble */}
 
-                {/* Reaction counts — visible below bubble when reactions exist */}
+                {/* ── Reaction counts — outside bubble ── */}
                 {!m.deleted && !isEditing && hasReactions && (
                   <div className={`mt-1 flex flex-wrap items-center gap-1 ${mine ? "justify-end" : "justify-start"}`}>
                     {EMOJIS.filter(e => (info.counts[e] || 0) > 0).map(e => {
@@ -264,7 +347,7 @@ export default function MessagesPane({
         })
       )}
 
-      {/* Optimistic outbox */}
+      {/* ── Optimistic outbox ── */}
       {outbox.length > 0 &&
         outbox.filter(o => o.conversationId === conversationId).map(o => (
           <div key={o.id} className="flex justify-end">
@@ -292,7 +375,7 @@ export default function MessagesPane({
           </div>
         ))}
 
-      {/* Typing indicator */}
+      {/* ── Typing indicator ── */}
       {Array.isArray(typingUserIds) && typingUserIds.length > 0 && activeOther && (
         <div className="flex items-center gap-2 pl-2 pt-2 text-xs text-[#71717A]">
           <span>{activeOther.name} is typing</span>
@@ -304,6 +387,7 @@ export default function MessagesPane({
         </div>
       )}
 
+      {/* ── New messages button ── */}
       {showNewBtn && (
         <button
           className="fixed bottom-20 right-6 rounded-full bg-[#18181B] border border-[rgba(255,255,255,0.08)] text-[#E4E4E7] px-3 py-2 text-xs shadow"
@@ -312,6 +396,7 @@ export default function MessagesPane({
           ↓ New messages
         </button>
       )}
+
     </div>
   );
 }
