@@ -32,7 +32,6 @@ function ChatApp() {
   const [search, setSearch] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  // Adding "as any" or changing the generic type helps bypass the strict check
   const listRef = useRef<HTMLDivElement>(null!);
   const [autoStick, setAutoStick] = useState(true);
   const [showNewBtn, setShowNewBtn] = useState(false);
@@ -44,6 +43,7 @@ function ChatApp() {
   const syncUser = useMutation(api.users.syncUser);
   const setOnlineStatus = useMutation(api.users.setOnlineStatus);
   const [myUserId, setMyUserId] = useState<ConvexId | null>(null);
+
   useEffect(() => {
     if (!clerkId) return;
     syncUser({
@@ -103,11 +103,13 @@ function ChatApp() {
   const usersLoading = usersRaw === undefined && !!myUserId;
   const convosLoading = convosRaw === undefined && !!myUserId;
   const messagesLoading = messagesRaw === undefined && !!activeId;
+
   const [typingTick, setTypingTick] = useState<number>(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setTypingTick(Date.now()), 2000);
     return () => clearInterval(id);
   }, []);
+
   const typingUserIds =
     useQuery(
       // @ts-ignore - generated types update at dev time
@@ -120,6 +122,7 @@ function ChatApp() {
           }
         : "skip",
     ) || [];
+
   const reactions =
     useQuery(
       // @ts-ignore
@@ -138,6 +141,11 @@ function ChatApp() {
     ((api as any).typing?.setTyping || api.typing.setTyping) as any,
   );
   const deleteMessageMutation = useMutation(api.messages.deleteMessage);
+  // ✏️ Edit message mutation
+  const editMessageMutation = useMutation(
+    // @ts-ignore - generated types update at dev time
+    (api as any).messages?.editMessage || api.messages.editMessage,
+  );
   // @ts-ignore
   const createGroupConversation = useMutation(
     (api as any).conversations?.createGroupConversation ||
@@ -187,6 +195,7 @@ function ChatApp() {
       setShowNewBtn(true);
     }
   }, [messages, autoStick]);
+
   const openWith = async (other: any) => {
     if (!myUserId) return;
     const id = await createOrGetConversation({
@@ -210,6 +219,7 @@ function ChatApp() {
   >([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
+
   const send = async () => {
     const text = input.trim();
     if (!text || !activeId || !myUserId) return;
@@ -323,7 +333,6 @@ function ChatApp() {
             <MessagesPane
               conversationId={activeId}
               listRef={listRef as any}
-              // listRef={listRef}
               messages={messages as any[]}
               messagesLoading={messagesLoading}
               myUserId={myUserId}
@@ -342,6 +351,15 @@ function ChatApp() {
                   messageId: messageId as any,
                   userId: myUserId as any,
                   emoji,
+                });
+              }}
+              // ✏️ Wire up edit message
+              onEditMessage={(messageId: string, newContent: string) => {
+                if (!myUserId) return;
+                editMessageMutation({
+                  messageId: messageId as any,
+                  userId: myUserId as any,
+                  newContent,
                 });
               }}
               outbox={outbox}

@@ -93,7 +93,6 @@ export const deleteMessage = mutation({
     }
     if (msg.deleted) return;
     await ctx.db.patch(messageId, { deleted: true });
-    // Update lastMessage preview if necessary
     const conversationId = msg.conversationId;
     const convo = await ctx.db.get(conversationId);
     if (!convo) return;
@@ -115,6 +114,37 @@ export const deleteMessage = mutation({
   },
 });
 
+// Edit message mutation
+export const editMessage = mutation({
+  args: {
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+    newContent: v.string(),
+  },
+  handler: async (ctx, { messageId, userId, newContent }) => {
+    const msg = await ctx.db.get(messageId);
+    if (!msg) throw new Error("Message not found");
+    if (msg.senderId !== userId) throw new Error("Cannot edit another user's message");
+    if (msg.deleted) throw new Error("Cannot edit a deleted message");
+    if (msg.fileId) throw new Error("Cannot edit file messages");
+
+    const trimmed = newContent.trim();
+    if (!trimmed) throw new Error("Message cannot be empty");
+
+    await ctx.db.patch(messageId, {
+      content: trimmed,
+      edited: true,
+      editedAt: Date.now(),
+    });
+
+    // Update conversation lastMessage preview if this was the latest message
+    const convo = await ctx.db.get(msg.conversationId);
+    if (convo && convo.lastMessage === msg.content) {
+      await ctx.db.patch(msg.conversationId, { lastMessage: trimmed });
+    }
+  },
+});
+
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
@@ -129,7 +159,7 @@ export const sendFileMessage = mutation({
     senderId: v.id("users"),
     fileId: v.id("_storage"),
     fileName: v.string(),
-    fileType: v.string(), // "image" | "pdf"
+    fileType: v.string(),
   },
   handler: async (ctx, { conversationId, senderId, fileId, fileName, fileType }) => {
     const convo = await ctx.db.get(conversationId);

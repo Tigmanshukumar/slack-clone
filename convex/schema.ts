@@ -28,6 +28,9 @@ export default defineSchema({
     fileId: v.optional(v.id("_storage")),
     fileName: v.optional(v.string()),
     fileType: v.optional(v.string()),
+    // Message editing fields
+    edited: v.optional(v.boolean()),
+    editedAt: v.optional(v.number()),
   }).index("by_conversationId", ["conversationId"]),
   
   typing: defineTable({

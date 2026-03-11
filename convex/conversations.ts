@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+// Create or get a 1:1 conversation between two users
 export const createOrGetConversation = mutation({
   args: { userAId: v.id("users"), userBId: v.id("users") },
   handler: async (ctx, { userAId, userBId }) => {
@@ -20,6 +21,7 @@ export const createOrGetConversation = mutation({
   },
 });
 
+// Get all conversations ordered by
 export const getUserConversations = query({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
@@ -31,7 +33,7 @@ export const getUserConversations = query({
     return list.filter(c => c.members.includes(userId));
   },
 });
-
+// Create Group conversation
 export const createGroupConversation = mutation({
   args: { name: v.string(), memberIds: v.array(v.id("users")) },
   handler: async (ctx, { name, memberIds }) => {
@@ -46,7 +48,7 @@ export const createGroupConversation = mutation({
     return id;
   },
 });
-
+// Delete Group conversation (Complex Function)
 export const deleteGroupConversation = mutation({
   args: { conversationId: v.id("conversations"), requesterId: v.id("users") },
   handler: async (ctx, { conversationId, requesterId }) => {
