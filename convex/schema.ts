@@ -16,6 +16,7 @@ export default defineSchema({
     name: v.optional(v.string()),
     lastMessage: v.optional(v.string()),
     updatedAt: v.number(),
+    pinnedMessageIds: v.optional(v.array(v.id("messages")))
   }).index("by_updatedAt", ["updatedAt"]),
 
   messages: defineTable({
@@ -31,6 +32,7 @@ export default defineSchema({
     // Message editing fields
     edited: v.optional(v.boolean()),
     editedAt: v.optional(v.number()),
+    // pinned: v.optional(v.boolean()),
   }).index("by_conversationId", ["conversationId"]),
   
   typing: defineTable({

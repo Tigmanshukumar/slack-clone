@@ -21,7 +21,56 @@ export const createOrGetConversation = mutation({
   },
 });
 
-// Get all conversations ordered by
+// ── Pin a message ──
+export const pinMessage = mutation({
+  args: {
+    conversationId: v.id("conversations"),
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, { conversationId, messageId, userId }) => {
+    const convo = await ctx.db.get(conversationId);
+    if (!convo) return;
+    if (!convo.members.includes(userId)) {
+      throw new Error("Not a member of this conversation");
+    }
+
+    const current = convo.pinnedMessageIds || [];
+
+    // prevent duplicates
+    if (current.includes(messageId)) return;
+
+    // cap at 5 pins
+    if (current.length >= 5) throw new Error("Max 5 pinned messages");
+
+    await ctx.db.patch(conversationId, {
+      pinnedMessageIds: [...current, messageId],
+    });
+  },
+});
+
+// ── Unpin a message ── ✅ was missing entirely
+export const unpinMessage = mutation({
+  args: {
+    conversationId: v.id("conversations"),
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, { conversationId, messageId, userId }) => {
+    const convo = await ctx.db.get(conversationId);
+    if (!convo) return;
+    if (!convo.members.includes(userId)) {
+      throw new Error("Not a member of this conversation");
+    }
+
+    const current = convo.pinnedMessageIds || [];
+    await ctx.db.patch(conversationId, {
+      pinnedMessageIds: current.filter(id => id !== messageId),
+    });
+  },
+});
+
+// Get all conversations ordered by updatedAt
 export const getUserConversations = query({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
@@ -33,6 +82,7 @@ export const getUserConversations = query({
     return list.filter(c => c.members.includes(userId));
   },
 });
+
 // Create Group conversation
 export const createGroupConversation = mutation({
   args: { name: v.string(), memberIds: v.array(v.id("users")) },
@@ -48,7 +98,8 @@ export const createGroupConversation = mutation({
     return id;
   },
 });
-// Delete Group conversation (Complex Function)
+
+// Delete Group conversation
 export const deleteGroupConversation = mutation({
   args: { conversationId: v.id("conversations"), requesterId: v.id("users") },
   handler: async (ctx, { conversationId, requesterId }) => {
@@ -65,7 +116,6 @@ export const deleteGroupConversation = mutation({
       .withIndex("by_conversationId", q => q.eq("conversationId", conversationId))
       .collect();
     for (const m of msgs) {
-      // delete reactions for this message
       const rs = await ctx.db
         // @ts-ignore reactions table exists in schema
         .query("reactions")
@@ -77,7 +127,6 @@ export const deleteGroupConversation = mutation({
       }
       await ctx.db.delete(m._id);
     }
-    // delete typing rows
     const typing = await ctx.db
       // @ts-ignore typing table exists in schema
       .query("typing")
