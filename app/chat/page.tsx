@@ -8,6 +8,7 @@ import ChatHeader from "./components/ChatHeader";
 import MessagesPane from "./components/MessagesPane";
 import Composer from "./components/Composer";
 import GroupCreatorModal from "./components/GroupCreatorModal";
+import SearchPanel from "./components/SearchPanel";
 
 type ConvexId = string;
 
@@ -40,7 +41,10 @@ function ChatApp() {
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   const [groupError, setGroupError] = useState<string>("");
 
-  // ── Ref map for scroll-to-message (pin feature) ──
+  // ── Search panel state ──
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // ── Ref map for scroll-to-message (pin + search) ──
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // ── Auth / user sync ──
@@ -146,7 +150,6 @@ function ChatApp() {
     // @ts-ignore
     (api as any).messages?.sendFileMessage || api.messages.sendFileMessage,
   );
-  // ── Pin / Unpin mutations ──
   const pinMessageMutation = useMutation(
     // @ts-ignore
     (api as any).conversations?.pinMessage,
@@ -232,7 +235,7 @@ function ChatApp() {
     return map;
   }, [reactions, myUserId]);
 
-  // ── Pinned message data derived from active conversation ──
+  // ── Pinned messages ──
   const pinnedMessageIds = useMemo<string[]>(() => {
     const c = (convos as any[]).find(x => x._id === activeId);
     return c?.pinnedMessageIds || [];
@@ -244,12 +247,11 @@ function ChatApp() {
       .filter(Boolean);
   }, [pinnedMessageIds, messages]);
 
-  // ── Scroll to a pinned message ──
+  // ── Scroll to a message (used by pin banner + search results) ──
   const scrollToMessage = (id: string) => {
     const el = messageRefs.current[id];
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    // Flash highlight
     el.classList.add("ring-2", "ring-[#7C3AED]", "rounded-xl");
     setTimeout(() => el.classList.remove("ring-2", "ring-[#7C3AED]", "rounded-xl"), 1500);
   };
@@ -267,18 +269,18 @@ function ChatApp() {
         activeId={activeId}
         myUserId={myUserId}
         onOpenWith={openWith}
-        onSelectConversation={id => setActiveId(id)}
+        onSelectConversation={id => { setActiveId(id); setSearchOpen(false); }}
         onClickNewGroup={() => setShowGroupCreator(true)}
       />
 
-      <div className={`${activeId ? "flex" : "hidden md:flex"} flex-1 flex-col`}>
+      <div className={`${activeId ? "flex" : "hidden md:flex"} flex-1 flex-col relative`}>
         {!activeId ? (
           <div className="flex h-full items-center justify-center text-[#A1A1AA]">
             Select a user to start chatting
           </div>
         ) : (
           <>
-            {/* ── ChatHeader — now receives pin props ── */}
+            {/* ── ChatHeader ── */}
             <ChatHeader
               convos={convos as any[]}
               activeId={activeId}
@@ -295,9 +297,10 @@ function ChatApp() {
               pinnedMessageIds={pinnedMessageIds}
               pinnedMessages={pinnedMessages}
               onScrollToMessage={scrollToMessage}
+              onSearchOpen={() => setSearchOpen(true)}
             />
 
-            {/* ── MessagesPane — now receives all pin + edit props ── */}
+            {/* ── MessagesPane ── */}
             <MessagesPane
               conversationId={activeId}
               listRef={listRef as any}
@@ -393,6 +396,15 @@ function ChatApp() {
               uploading={uploading}
             />
             {uploadError && <div className="px-4 pb-2 text-xs text-[#f87171]">{uploadError}</div>}
+
+            {/* ── Search panel ── */}
+            <SearchPanel
+              open={searchOpen}
+              onClose={() => setSearchOpen(false)}
+              messages={messages as any[]}
+              myUserId={myUserId}
+              onScrollToMessage={scrollToMessage}
+            />
           </>
         )}
       </div>

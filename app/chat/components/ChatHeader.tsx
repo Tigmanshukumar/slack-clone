@@ -1,6 +1,6 @@
 "use client";
-import Image from "next/image";
 import { useState } from "react";
+import Image from "next/image";
 
 type Props = {
   convos: any[];
@@ -8,9 +8,12 @@ type Props = {
   activeOther: any | null;
   onBack: () => void;
   onDeleteGroup: () => void;
-  pinnedMessageIds: string[];
-  pinnedMessages: any[];
-  onScrollToMessage: (id: string) => void;
+  // Pin props
+  pinnedMessageIds?: string[];
+  pinnedMessages?: any[];
+  onScrollToMessage?: (id: string) => void;
+  // Search — wired to the existing search icon
+  onSearchOpen?: () => void;
 };
 
 export default function ChatHeader({
@@ -19,33 +22,33 @@ export default function ChatHeader({
   activeOther,
   onBack,
   onDeleteGroup,
-  // ✅ Now actually destructured (were declared but ignored before)
   pinnedMessageIds = [],
   pinnedMessages = [],
-  onScrollToMessage,
+  onScrollToMessage = () => {},
+  onSearchOpen = () => {},
 }: Props) {
-  // Cycle through multiple pins with this index
   const [pinIndex, setPinIndex] = useState(0);
-
   const c = (convos as any[]).find(x => x._id === activeId);
-
   const hasPins = pinnedMessageIds.length > 0;
-  const currentPinIndex = Math.min(pinIndex, pinnedMessageIds.length - 1);
-  const currentPinnedMsg = pinnedMessages[currentPinIndex];
 
   const handlePinClick = () => {
-    const id = pinnedMessageIds[currentPinIndex];
+    const id = pinnedMessageIds[pinIndex];
     if (id) onScrollToMessage(id);
-    // Cycle to next pin on each click
     setPinIndex(prev => (prev + 1) % pinnedMessageIds.length);
   };
 
-  return (
-    // ✅ Wrap in a fragment so we can add the pin banner below the main bar
-    <div className="flex flex-col">
+  const currentPin = pinnedMessages[pinIndex];
+  const pinPreview = currentPin
+    ? currentPin.fileId
+      ? `📎 ${currentPin.fileName || "File"}`
+      : currentPin.content?.slice(0, 60) + (currentPin.content?.length > 60 ? "…" : "")
+    : null;
 
-      {/* ── Main header bar ── */}
-      <div className="h-16 border-b border-[rgba(255,255,255,0.05)] bg-[#111113]/95 backdrop-blur-sm flex items-center justify-between px-6">
+  return (
+    <div className="border-b border-[rgba(255,255,255,0.05)] bg-[#111113]/95 backdrop-blur-sm">
+
+      {/* ── Main header bar (identical structure to your repo) ── */}
+      <div className="h-16 flex items-center justify-between px-6">
         <div className="flex items-center gap-3 min-w-0">
           <button
             className="md:hidden mr-1 text-sm px-2 py-1 border rounded border-[rgba(255,255,255,0.08)] text-[#E4E4E7]"
@@ -56,7 +59,7 @@ export default function ChatHeader({
           {c?.isGroup ? (
             <div className="flex items-center gap-3 min-w-0">
               <div className="h-9 w-9 rounded-md bg-[#7C3AED]/20 flex items-center justify-center text-[12px] text-[#E4E4E7]">
-                {c.name?.slice(0, 2)?.toUpperCase() || "GR"}
+                {c.name?.slice(0,2)?.toUpperCase() || "GR"}
               </div>
               <div className="flex flex-col leading-tight">
                 <div className="text-white font-semibold text-[15px] truncate">{c.name || "Group"}</div>
@@ -66,18 +69,10 @@ export default function ChatHeader({
           ) : activeOther ? (
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative">
-                <Image
-                  src={activeOther.imageUrl || "/vercel.svg"}
-                  width={36}
-                  height={36}
-                  alt={activeOther.name}
-                  className="rounded-full"
-                />
-                <span
-                  className={`absolute -right-0 -bottom-0 h-2.5 w-2.5 rounded-full border border-[#111113] ${
-                    activeOther.online ? "bg-[#22C55E] animate-pulse" : "bg-zinc-500"
-                  }`}
-                />
+                <Image src={activeOther.imageUrl || "/vercel.svg"} width={36} height={36} alt={activeOther.name} className="rounded-full" />
+                <span className={`absolute -right-0 -bottom-0 h-2.5 w-2.5 rounded-full border border-[#111113] ${
+                  activeOther.online ? "bg-[#22C55E] animate-pulse" : "bg-zinc-500"
+                }`} />
               </div>
               <div className="flex flex-col leading-tight">
                 <div className="text-white font-semibold text-[15px] truncate">{activeOther.name}</div>
@@ -90,18 +85,29 @@ export default function ChatHeader({
           ) : null}
         </div>
 
+        {/* ── Right icons (same 3 as your repo, search now has onClick) ── */}
         <div className="flex items-center gap-1">
-          <button className="p-2 rounded-lg hover:bg-white/5 transition" title="Search">
+
+          {/* 🔍 Search — was already here, now wired up */}
+          <button
+            className="p-2 rounded-lg hover:bg-white/5 transition"
+            title="Search"
+            onClick={onSearchOpen}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-[#E4E4E7]">
               <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
             </svg>
           </button>
+
+          {/* 📞 Call (unchanged) */}
           <button className="p-2 rounded-lg hover:bg-white/5 transition hidden sm:block" title="Call">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-[#E4E4E7]">
               <path d="M6 2h3l2 5-2 1a11 11 0 006 6l1-2 5 2v3c0 1.1-.9 2-2 2A16 16 0 016 4c0-1.1.9-2 2-2z" stroke="currentColor" strokeWidth="1.4" fill="none" />
             </svg>
           </button>
+
+          {/* ⋯ More (unchanged) */}
           <button className="p-2 rounded-lg hover:bg-white/5 transition" title="More">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-[#E4E4E7]">
               <circle cx="5" cy="12" r="1.8" fill="currentColor" />
@@ -109,6 +115,8 @@ export default function ChatHeader({
               <circle cx="19" cy="12" r="1.8" fill="currentColor" />
             </svg>
           </button>
+
+          {/* 🗑️ Delete group (unchanged) */}
           {c?.isGroup ? (
             <button
               className="ml-1 text-xs px-2 py-1 rounded-lg border border-[rgba(255,255,255,0.08)] text-[#f87171] hover:bg-[#f87171]/10 transition"
@@ -120,30 +128,21 @@ export default function ChatHeader({
         </div>
       </div>
 
-      {/* ── Pin banner — only shown when pins exist ── */}
-      {hasPins && (
+      {/* ── Pin banner (below header bar, only when there are pins) ── */}
+      {hasPins && pinPreview && (
         <button
           onClick={handlePinClick}
-          className="flex items-center gap-2 px-6 py-1.5 bg-[#18181B] border-b border-[rgba(255,255,255,0.05)] hover:bg-[#1F1F23] transition-colors w-full text-left"
-          title="Click to jump to pinned message"
+          className="w-full flex items-center gap-3 px-4 py-2 bg-[#7C3AED]/10 hover:bg-[#7C3AED]/15 border-t border-[#7C3AED]/20 transition-colors text-left"
         >
-          <span className="text-[#7C3AED] text-[13px] shrink-0">📌</span>
-          <span className="text-[12px] text-[#A1A1AA] truncate flex-1">
-            {currentPinnedMsg?.content
-              ? currentPinnedMsg.content
-              : currentPinnedMsg?.fileName
-              ? currentPinnedMsg.fileName
-              : "Pinned message"}
-          </span>
-          {/* Counter badge when multiple pins */}
+          <span className="text-[#A78BFA] shrink-0">📌</span>
+          <span className="flex-1 text-[12px] text-[#A78BFA] truncate">{pinPreview}</span>
           {pinnedMessageIds.length > 1 && (
-            <span className="shrink-0 text-[11px] text-[#52525B]">
-              {currentPinIndex + 1} / {pinnedMessageIds.length}
+            <span className="shrink-0 text-[10px] bg-[#7C3AED]/30 text-[#A78BFA] px-1.5 py-0.5 rounded-full">
+              {pinIndex + 1} / {pinnedMessageIds.length}
             </span>
           )}
         </button>
       )}
-
     </div>
   );
 }
